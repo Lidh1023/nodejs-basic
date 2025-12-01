@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>简单聊天 Demo</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f172a;
+      --card: #0b1221;
+      --border: #1e293b;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #4f46e5;
+      --accent-2: #22c55e;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(1200px 600px at 20% 0%, #0b1020 0%, #0f172a 50%, #0a0f1c 100%);
+      color: var(--text);
+    }
+
+    .header {
+      position: sticky;
+      top: 0;
+      backdrop-filter: saturate(1.5) blur(6px);
+      background: rgba(10, 15, 28, 0.6);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header .inner {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      letter-spacing: .3px;
+    }
+
+    .brand .badge {
+      font-size: 12px;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 2px 8px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .chat {
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.7), rgba(11, 18, 33, 0.6));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      min-height: 50vh;
+      max-height: 65vh;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .25), inset 0 1px 0 rgba(255, 255, 255, .03);
+    }
+
+    .msg {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .msg.user {
+      justify-content: flex-start;
+      flex-direction: row;
+    }
+
+    .avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      color: #fff;
+      background: #0ea5e9;
+      box-shadow: 0 4px 10px rgba(14, 165, 233, .35);
+    }
+
+    .avatar.user {
+      background: #f59e0b;
+      box-shadow: 0 4px 10px rgba(245, 158, 11, .35);
+    }
+
+    .bubble {
+      max-width: 75%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.6;
+    }
+
+    .assistant .bubble {
+      background: rgba(79, 70, 229, .12);
+      border: 1px solid rgba(79, 70, 229, .25);
+    }
+
+    .user .bubble {
+      background: rgba(34, 197, 94, .12);
+      border: 1px solid rgba(34, 197, 94, .25);
+    }
+
+    .reasoning .bubble {
+      background: rgba(148, 163, 184, .12);
+      border: 1px solid rgba(148, 163, 184, .25);
+      font-style: italic;
+      color: var(--muted);
+    }
+
+    .input {
+      position: sticky;
+      bottom: 0;
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      background: linear-gradient(180deg, rgba(10, 15, 28, .6), rgba(10, 15, 28, .9));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, .25);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 100px;
+      resize: vertical;
+      padding: 12px;
+      font-size: 14px;
+      color: var(--text);
+      background: rgba(15, 23, 42, .8);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: rgba(79, 70, 229, .6);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, .2);
+    }
+
+    button {
+      padding: 0 18px;
+      font-size: 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(79, 70, 229, .45);
+      color: #fff;
+      background: linear-gradient(180deg, #5b54f6, #4f46e5);
+      box-shadow: 0 8px 18px rgba(79, 70, 229, .35);
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: .65;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+
+<body>
+  <header class="header">
+    <div class="inner">
+      <div class="brand">🗨️ 简单聊天 Demo <span class="badge">SSE</span></div>
+    </div>
+  </header>
+  <div class="container">
+    <div id="chat" class="chat"></div>
+    <div class="input">
+      <textarea id="input" placeholder="在此输入你的问题..."></textarea>
+      <button id="send">发送</button>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <script>
+    const chatEl = document.getElementById('chat');
+    const inputEl = document.getElementById('input');
+    const sendBtn = document.getElementById('send');
+    const statusEl = document.getElementById('status');
+
+    function addMsg(role, text, extraClass = '') {
+      const wrap = document.createElement('div');
+      wrap.className = `msg ${role} ${extraClass}`.trim();
+      let avatar = null;
+      if (role !== 'reasoning') {
+        avatar = document.createElement('div');
+        avatar.className = `avatar ${role}`;
+        avatar.textContent = role === 'user' ? '我' : 'AI';
+      }
+      const bubble = document.createElement('div');
+      bubble.className = `bubble`;
+      bubble.textContent = text;
+      if (avatar) wrap.appendChild(avatar);
+      wrap.appendChild(bubble);
+      chatEl.appendChild(wrap);
+      chatEl.scrollTop = chatEl.scrollHeight;
+      return bubble;
+    }
+
+    function jsonStreamParse(onEvent) {
+      let buffer = '';
+      return (chunkText) => {
+        buffer += chunkText;
+        const lines = buffer.split(/\r?\n/);
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const json = JSON.parse(line);
+            onEvent(json);
+          } catch (e) {
+            console.error('JSON parse error', e);
+          }
+        }
+      };
+    }
+
+    async function sendMessage() {
+      const text = inputEl.value.trim();
+      if (!text) return;
+
+      inputEl.value = '';
+      sendBtn.disabled = true;
+      statusEl.textContent = '发送中，等待流式响应...';
+
+      addMsg('user', text);
+      let assistantTextEl = null;
+      let reasoningTextEl = null;
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text })
+        });
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        const feed = jsonStreamParse(({ type, content }) => {
+          if (type === 'reasoning') {
+            if (content) {
+              if (!reasoningTextEl) reasoningTextEl = addMsg('reasoning', '');
+              reasoningTextEl.textContent += content;
+            }
+          } else if (type === 'message') {
+            if (content) {
+              if (!assistantTextEl) assistantTextEl = addMsg('assistant', '');
+              assistantTextEl.textContent += content;
+            }
+          } else if (type === 'done') {
+            statusEl.textContent = '完成';
+          }
+        });
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          feed(decoder.decode(value, { stream: true }));
+        }
+      } catch (e) {
+        statusEl.textContent = '请求失败';
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+  </script>
+</body>
+
+</html>
