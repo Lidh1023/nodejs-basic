@@ -99,7 +99,7 @@ console.log("\n🔧 第一步：定义工具\n");
 
 /**
  * 工具 1: 天气查询
- * 
+ *
  * 工具是 Agent 的"手和脚"，让 Agent 能够：
  * - 查询外部信息
  * - 执行计算
@@ -114,17 +114,22 @@ const weatherTool = new DynamicStructuredTool({
   }),
   func: async ({ city }) => {
     console.log(`   🌤️  [天气工具] 查询 ${city} 的天气...`);
-    
+
     // 模拟天气数据（实际应用中会调用真实 API）
     const weatherData = {
-      "北京": { temp: 15, condition: "晴天", humidity: 45, wind: "北风3级" },
-      "上海": { temp: 20, condition: "多云", humidity: 65, wind: "东风2级" },
-      "深圳": { temp: 28, condition: "小雨", humidity: 80, wind: "南风1级" },
-      "广州": { temp: 26, condition: "阴天", humidity: 70, wind: "东南风2级" },
+      北京: { temp: 15, condition: "晴天", humidity: 45, wind: "北风3级" },
+      上海: { temp: 20, condition: "多云", humidity: 65, wind: "东风2级" },
+      深圳: { temp: 28, condition: "小雨", humidity: 80, wind: "南风1级" },
+      广州: { temp: 26, condition: "阴天", humidity: 70, wind: "东南风2级" },
     };
-    
-    const data = weatherData[city] || { temp: 22, condition: "晴天", humidity: 50, wind: "微风" };
-    
+
+    const data = weatherData[city] || {
+      temp: 22,
+      condition: "晴天",
+      humidity: 50,
+      wind: "微风",
+    };
+
     return JSON.stringify({
       city,
       temperature: `${data.temp}°C`,
@@ -166,20 +171,23 @@ const searchTool = new DynamicStructuredTool({
   }),
   func: async ({ query }) => {
     console.log(`   🔍 [搜索] 搜索: ${query}`);
-    
+
     // 模拟搜索结果
     const mockResults = {
-      "LangChain": "LangChain 是一个用于开发由大语言模型驱动的应用程序的框架。最新版本为 v0.3，支持 Agent、Tools、Memory 等功能。",
-      "Agent": "AI Agent 是能够自主决策和执行任务的智能系统。它结合了大语言模型的推理能力和工具调用能力。",
-      "ReAct": "ReAct (Reasoning + Acting) 是一种让语言模型交替执行推理和行动的框架，被广泛用于 AI Agent 开发。",
+      LangChain:
+        "LangChain 是一个用于开发由大语言模型驱动的应用程序的框架。最新版本为 v0.3，支持 Agent、Tools、Memory 等功能。",
+      Agent:
+        "AI Agent 是能够自主决策和执行任务的智能系统。它结合了大语言模型的推理能力和工具调用能力。",
+      ReAct:
+        "ReAct (Reasoning + Acting) 是一种让语言模型交替执行推理和行动的框架，被广泛用于 AI Agent 开发。",
     };
-    
+
     for (const [key, value] of Object.entries(mockResults)) {
       if (query.toLowerCase().includes(key.toLowerCase())) {
         return value;
       }
     }
-    
+
     return `搜索 "${query}" 的结果：这是一个模拟的搜索结果。在实际应用中，这里会返回真实的网络搜索数据。`;
   },
 });
@@ -235,7 +243,7 @@ console.log("\n📋 第三步：定义 Agent 状态\n");
 
 /**
  * Agent 状态的核心是 messages 数组
- * 
+ *
  * 为什么使用累加 reducer？
  * - 对话是连续的，每条消息都需要保留
  * - LLM 需要看到完整的对话历史
@@ -262,7 +270,7 @@ console.log("\n🔄 第四步：定义 Agent 节点\n");
 
 /**
  * Agent 节点：大脑
- * 
+ *
  * 这是 Agent 的核心决策中心：
  * 1. 分析当前对话状态
  * 2. 决定是否需要调用工具
@@ -271,25 +279,25 @@ console.log("\n🔄 第四步：定义 Agent 节点\n");
  */
 async function agentNode(state) {
   console.log("\n   🧠 [Agent节点] 思考中...");
-  
+
   // 调用 LLM 进行推理
   const response = await llmWithTools.invoke(state.messages);
-  
+
   // 检查 LLM 的决策
   if (response.tool_calls && response.tool_calls.length > 0) {
-    const toolNames = response.tool_calls.map(t => t.name).join(", ");
+    const toolNames = response.tool_calls.map((t) => t.name).join(", ");
     console.log(`   🧠 [Agent节点] 决定调用工具: ${toolNames}`);
   } else {
     console.log("   🧠 [Agent节点] 无需工具，直接回答");
   }
-  
+
   // 返回 AI 的响应，添加到 messages
   return { messages: [response] };
 }
 
 /**
  * 工具节点：双手
- * 
+ *
  * 使用 LangGraph 内置的 ToolNode
  * 它会自动：
  * 1. 解析 AI 的 tool_calls
@@ -310,19 +318,19 @@ console.log("\n🔀 第五步：定义路由函数\n");
 
 /**
  * 路由函数：交通灯
- * 
+ *
  * 决定 Agent 的下一步：
  * - 有 tool_calls → 去工具节点执行
  * - 无 tool_calls → 任务完成，结束
  */
 function shouldCallTools(state) {
   const lastMessage = state.messages[state.messages.length - 1];
-  
+
   if (lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
     console.log("   🔀 [路由] 需要调用工具 → tools");
     return "tools";
   }
-  
+
   console.log("   🔀 [路由] 任务完成 → END");
   return "end";
 }
@@ -339,7 +347,7 @@ console.log("\n🏗️  第六步：构建 Agent 图\n");
 
 /**
  * 使用 StateGraph 构建 Agent
- * 
+ *
  * 这是一个有向图，定义了：
  * - 节点（做什么）
  * - 边（怎么连接）
@@ -347,20 +355,21 @@ console.log("\n🏗️  第六步：构建 Agent 图\n");
  */
 const graph = new StateGraph(AgentState)
   // 添加节点
-  .addNode("agent", agentNode)   // 思考节点
-  .addNode("tools", toolNode)    // 工具节点
-  
+  .addNode("agent", agentNode) // 思考节点
+  .addNode("tools", toolNode) // 工具节点
+
   // 添加边
-  .addEdge(START, "agent")       // 入口 → agent
-  .addConditionalEdges(          // agent → 条件分支
-    "agent", 
-    shouldCallTools, 
+  .addEdge(START, "agent") // 入口 → agent
+  .addConditionalEdges(
+    // agent → 条件分支
+    "agent",
+    shouldCallTools,
     {
-      tools: "tools",            // 需要工具 → tools
-      end: END,                  // 不需要 → 结束
+      tools: "tools", // 需要工具 → tools
+      end: END, // 不需要 → 结束
     }
   )
-  .addEdge("tools", "agent");    // tools → agent（循环回来！）
+  .addEdge("tools", "agent"); // tools → agent（循环回来！）
 
 console.log("   Agent 流程图:");
 console.log("");
@@ -424,24 +433,24 @@ for (const testCase of testCases) {
   console.log(`\n${testCase.description}`);
   console.log(`🤔 用户: ${testCase.question}`);
   console.log("");
-  
+
   try {
     // 调用 Agent
     const result = await agent.invoke({
       messages: [new HumanMessage(testCase.question)],
     });
-    
+
     // 获取最后一条 AI 消息作为回答
     const finalMessage = result.messages[result.messages.length - 1];
     console.log("\n💬 Agent 回答:");
     console.log(`   ${finalMessage.content}`);
-    
+
     // 显示消息数量（用于理解循环次数）
     console.log(`\n   📊 总消息数: ${result.messages.length}`);
   } catch (error) {
     console.log(`   ❌ 错误: ${error.message}`);
   }
-  
+
   console.log("");
 }
 
@@ -547,4 +556,3 @@ console.log(`
 console.log("═".repeat(60));
 console.log("\n✅ Agent Demo 运行完成！");
 console.log("📖 请查看 AGENT_知识点详解.md 获取更多学习资料\n");
-
