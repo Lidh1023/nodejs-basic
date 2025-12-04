@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>简单聊天 Demo</title>
+  <title>简单聊天 Demo - 带记忆</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -30,6 +30,7 @@
       backdrop-filter: saturate(1.5) blur(6px);
       background: rgba(10, 15, 28, 0.6);
       border-bottom: 1px solid var(--border);
+      z-index: 100;
     }
 
     .header .inner {
@@ -37,6 +38,7 @@
       margin: 0 auto;
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 12px;
       padding: 14px 16px;
     }
@@ -55,6 +57,36 @@
       border: 1px solid var(--border);
       border-radius: 999px;
       padding: 2px 8px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .msg-count {
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(79, 70, 229, .15);
+      border: 1px solid rgba(79, 70, 229, .3);
+      border-radius: 999px;
+      padding: 4px 10px;
+    }
+
+    .new-chat-btn {
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(34, 197, 94, .4);
+      color: #22c55e;
+      background: rgba(34, 197, 94, .1);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .new-chat-btn:hover {
+      background: rgba(34, 197, 94, .2);
     }
 
     .container {
@@ -98,6 +130,7 @@
       color: #fff;
       background: #0ea5e9;
       box-shadow: 0 4px 10px rgba(14, 165, 233, .35);
+      flex-shrink: 0;
     }
 
     .avatar.user {
@@ -129,6 +162,16 @@
       border: 1px solid rgba(148, 163, 184, .25);
       font-style: italic;
       color: var(--muted);
+    }
+
+    .system-msg {
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      padding: 8px;
+      background: rgba(148, 163, 184, .08);
+      border-radius: 8px;
+      margin: 8px 0;
     }
 
     .input {
@@ -183,6 +226,16 @@
       margin-top: 10px;
       font-size: 12px;
       color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .thread-info {
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--muted);
+      opacity: 0.7;
     }
   </style>
 </head>
@@ -190,16 +243,23 @@
 <body>
   <header class="header">
     <div class="inner">
-      <div class="brand">🗨️ 简单聊天 Demo <span class="badge">SSE</span></div>
+      <div class="brand">🗨️ 聊天 Demo <span class="badge">MemorySaver</span></div>
+      <div class="header-actions">
+        <span id="msgCount" class="msg-count">消息: 0/10</span>
+        <button class="new-chat-btn" onclick="startNewChat()">🔄 新对话</button>
+      </div>
     </div>
   </header>
   <div class="container">
     <div id="chat" class="chat"></div>
     <div class="input">
-      <textarea id="input" placeholder="在此输入你的问题..."></textarea>
+      <textarea id="input" placeholder="在此输入你的问题...（AI 会记住之前的对话）"></textarea>
       <button id="send">发送</button>
     </div>
-    <div class="status" id="status"></div>
+    <div class="status">
+      <span id="status"></span>
+      <span id="threadInfo" class="thread-info"></span>
+    </div>
   </div>
 
   <script>
@@ -207,6 +267,28 @@
     const inputEl = document.getElementById('input');
     const sendBtn = document.getElementById('send');
     const statusEl = document.getElementById('status');
+    const msgCountEl = document.getElementById('msgCount');
+    const threadInfoEl = document.getElementById('threadInfo');
+
+    // 生成或获取 thread_id
+    let threadId = localStorage.getItem('chatThreadId');
+    if (!threadId) {
+      threadId = 'thread_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('chatThreadId', threadId);
+    }
+    threadInfoEl.textContent = `Thread: ${threadId.slice(0, 20)}...`;
+
+    // 开始新对话
+    function startNewChat() {
+      if (confirm('确定要开始新对话吗？当前对话历史将被清除。')) {
+        threadId = 'thread_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('chatThreadId', threadId);
+        threadInfoEl.textContent = `Thread: ${threadId.slice(0, 20)}...`;
+        chatEl.innerHTML = '';
+        msgCountEl.textContent = '消息: 0/10';
+        addSystemMsg('🆕 已开始新对话');
+      }
+    }
 
     function addMsg(role, text, extraClass = '') {
       const wrap = document.createElement('div');
@@ -227,6 +309,23 @@
       return bubble;
     }
 
+    function addSystemMsg(text) {
+      const div = document.createElement('div');
+      div.className = 'system-msg';
+      div.textContent = text;
+      chatEl.appendChild(div);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function updateMsgCount(count) {
+      msgCountEl.textContent = `消息: ${count}/10`;
+      if (count >= 8) {
+        msgCountEl.style.color = '#f59e0b';
+      } else {
+        msgCountEl.style.color = '';
+      }
+    }
+
     function jsonStreamParse(onEvent) {
       let buffer = '';
       return (chunkText) => {
@@ -245,6 +344,24 @@
       };
     }
 
+    // 加载历史记录
+    async function loadHistory() {
+      try {
+        const res = await fetch(`/api/history?threadId=${encodeURIComponent(threadId)}`);
+        const data = await res.json();
+
+        if (data.history && data.history.length > 0) {
+          addSystemMsg(`📜 已加载 ${data.history.length} 条历史消息`);
+          data.history.forEach(msg => {
+            addMsg(msg.role === 'user' ? 'user' : 'assistant', msg.content);
+          });
+          updateMsgCount(data.count);
+        }
+      } catch (e) {
+        console.log('加载历史记录失败', e);
+      }
+    }
+
     async function sendMessage() {
       const text = inputEl.value.trim();
       if (!text) return;
@@ -261,7 +378,10 @@
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text })
+          body: JSON.stringify({
+            message: text,
+            threadId: threadId  // 传递 thread_id
+          })
         });
 
         const reader = res.body.getReader();
@@ -278,7 +398,11 @@
               assistantTextEl.textContent += content;
             }
           } else if (type === 'done') {
-            statusEl.textContent = '完成';
+            statusEl.textContent = '✅ 完成（AI 已记住此对话）';
+            // 更新消息计数
+            fetchMsgCount();
+          } else if (type === 'error') {
+            statusEl.textContent = '❌ 错误: ' + content;
           }
         });
 
@@ -294,7 +418,29 @@
       }
     }
 
+    async function fetchMsgCount() {
+      try {
+        const res = await fetch(`/api/history?threadId=${encodeURIComponent(threadId)}`);
+        const data = await res.json();
+        updateMsgCount(data.count || 0);
+      } catch (e) {
+        console.log('获取消息数失败');
+      }
+    }
+
     sendBtn.addEventListener('click', sendMessage);
+
+    // 支持 Ctrl+Enter 发送
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'Enter') {
+        sendMessage();
+      }
+    });
+
+    // 页面加载时加载历史记录
+    window.addEventListener('load', () => {
+      loadHistory();
+    });
   </script>
 </body>
 
