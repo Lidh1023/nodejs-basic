@@ -12,12 +12,12 @@
   "dependencies": {
     "@langchain/core": "^1.1.0",
     "@langchain/deepseek": "^1.0.2",
-    "@langchain/langgraph": "^1.0.2",
+    "@langchain/langgraph": "^1.0.3",
     "@langchain/tavily": "^1.0.1",
     "dotenv": "^17.2.3",
     "langchain": "^1.1.1",
     "openai": "^5.23.0",
-    "zod": "^4.1.13"
+    "zod": "^3.25.76"
   },
   "type": "module"
 }
