@@ -17,6 +17,7 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { ChatDeepSeek } from "@langchain/deepseek";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { TavilySearch } from "@langchain/tavily";
 import { z } from "zod";
 import "dotenv/config";
 
@@ -161,34 +162,44 @@ const calculatorTool = new DynamicStructuredTool({
 });
 
 /**
- * 工具 3: 搜索引擎（模拟）
+ * 工具 3: Tavily 搜索引擎（真实搜索）
+ *
+ * Tavily 是专门为 AI Agent 设计的搜索 API
+ * 需要配置环境变量: TAVILY_API_KEY
+ * 获取 API Key: https://tavily.com/
  */
-const searchTool = new DynamicStructuredTool({
-  name: "web_search",
-  description: "在互联网上搜索信息。当需要查询最新资讯或不确定的知识时使用。",
+const searchTool = new TavilySearch({
+  maxResults: 3, // 返回最多 3 条结果
+  // 可选配置:
+  // searchDepth: "advanced", // 搜索深度: "basic" 或 "advanced"
+  // includeRawContent: true, // 是否包含原始内容
+});
+
+// 包装 Tavily 工具，添加日志输出
+const wrappedSearchTool = new DynamicStructuredTool({
+  name: "tavily_search",
+  description:
+    "使用 Tavily 在互联网上搜索实时信息。当需要查询最新资讯、新闻、技术文档或不确定的知识时使用此工具。",
   schema: z.object({
     query: z.string().describe("搜索关键词"),
   }),
   func: async ({ query }) => {
-    console.log(`   🔍 [搜索] 搜索: ${query}`);
+    console.log(`   🔍 [Tavily搜索] 正在搜索: "${query}"`);
 
-    // 模拟搜索结果
-    const mockResults = {
-      LangChain:
-        "LangChain 是一个用于开发由大语言模型驱动的应用程序的框架。最新版本为 v0.3，支持 Agent、Tools、Memory 等功能。",
-      Agent:
-        "AI Agent 是能够自主决策和执行任务的智能系统。它结合了大语言模型的推理能力和工具调用能力。",
-      ReAct:
-        "ReAct (Reasoning + Acting) 是一种让语言模型交替执行推理和行动的框架，被广泛用于 AI Agent 开发。",
-    };
+    try {
+      // 调用 Tavily 搜索
+      const result = await searchTool.invoke({ query });
+      console.log(`   🔍 [Tavily搜索] 搜索完成，获取到结果`);
+      return result;
+    } catch (error) {
+      console.log(`   ❌ [Tavily搜索] 搜索失败: ${error.message}`);
 
-    for (const [key, value] of Object.entries(mockResults)) {
-      if (query.toLowerCase().includes(key.toLowerCase())) {
-        return value;
+      // 检查是否是 API Key 问题
+      if (!process.env.TAVILY_API_KEY) {
+        return "搜索失败：未配置 TAVILY_API_KEY。请在 .env 文件中添加 TAVILY_API_KEY=your_api_key";
       }
+      return `搜索失败: ${error.message}`;
     }
-
-    return `搜索 "${query}" 的结果：这是一个模拟的搜索结果。在实际应用中，这里会返回真实的网络搜索数据。`;
   },
 });
 
@@ -209,13 +220,21 @@ const timeTool = new DynamicStructuredTool({
 });
 
 // 工具列表
-const tools = [weatherTool, calculatorTool, searchTool, timeTool];
+const tools = [weatherTool, calculatorTool, wrappedSearchTool, timeTool];
 
 console.log("   ✅ 已创建 4 个工具:");
 console.log("      • get_weather - 天气查询");
 console.log("      • calculator - 数学计算");
-console.log("      • web_search - 网络搜索");
+console.log("      • tavily_search - Tavily 网络搜索（真实搜索）");
 console.log("      • get_time - 时间查询");
+
+// 检查 Tavily API Key
+if (!process.env.TAVILY_API_KEY) {
+  console.log("\n   ⚠️  提示: 未配置 TAVILY_API_KEY");
+  console.log("      搜索工具将无法正常工作");
+  console.log("      请在 .env 文件中添加: TAVILY_API_KEY=your_api_key");
+  console.log("      获取 API Key: https://tavily.com/");
+}
 
 // ============================================
 // 第二步：初始化 LLM 并绑定工具
@@ -397,6 +416,84 @@ const agent = graph.compile();
 console.log("   ✅ Agent 编译完成！\n");
 
 // ============================================
+// 辅助函数：打印详细消息列表
+// ============================================
+
+/**
+ * 打印消息列表的详细信息
+ * 用于调试和理解 Agent 的处理过程
+ */
+function printDetailedMessages(messages) {
+  console.log("\n   📋 ═══════════════════════════════════════════════════");
+  console.log("   📋 详细消息列表（大模型处理过程）");
+  console.log("   📋 ═══════════════════════════════════════════════════\n");
+
+  messages.forEach((msg, index) => {
+    const msgType = msg.constructor.name;
+    console.log(`   ┌─ 消息 ${index + 1}: ${msgType}`);
+
+    // 根据消息类型打印不同信息
+    switch (msgType) {
+      case "HumanMessage":
+        console.log(`   │  📝 类型: 用户消息`);
+        console.log(`   │  💬 内容: ${msg.content}`);
+        break;
+
+      case "AIMessage":
+        console.log(`   │  🤖 类型: AI 消息`);
+        if (msg.content) {
+          console.log(
+            `   │  💬 内容: ${msg.content.substring(0, 200)}${
+              msg.content.length > 200 ? "..." : ""
+            }`
+          );
+        }
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+          console.log(`   │  🔧 工具调用:`);
+          msg.tool_calls.forEach((tc, i) => {
+            console.log(`   │     [${i + 1}] 工具名: ${tc.name}`);
+            console.log(`   │         参数: ${JSON.stringify(tc.args)}`);
+            console.log(`   │         调用ID: ${tc.id}`);
+          });
+        }
+        break;
+
+      case "ToolMessage":
+        console.log(`   │  🔧 类型: 工具返回消息`);
+        console.log(`   │  📌 工具调用ID: ${msg.tool_call_id}`);
+        console.log(`   │  📌 工具名称: ${msg.name || "未知"}`);
+        // 格式化输出工具返回内容
+        try {
+          const content =
+            typeof msg.content === "string"
+              ? msg.content
+              : JSON.stringify(msg.content);
+          if (content.length > 500) {
+            console.log(`   │  📄 返回内容 (截取前500字符):`);
+            console.log(`   │     ${content.substring(0, 500)}...`);
+          } else {
+            console.log(`   │  📄 返回内容:`);
+            console.log(`   │     ${content}`);
+          }
+        } catch (e) {
+          console.log(`   │  📄 返回内容: ${msg.content}`);
+        }
+        break;
+
+      default:
+        console.log(`   │  📝 类型: ${msgType}`);
+        console.log(
+          `   │  💬 内容: ${JSON.stringify(msg.content).substring(0, 200)}`
+        );
+    }
+
+    console.log(`   └─────────────────────────────────────────────────────\n`);
+  });
+
+  console.log("   📋 ═══════════════════════════════════════════════════\n");
+}
+
+// ============================================
 // 测试用例
 // ============================================
 
@@ -408,22 +505,27 @@ const testCases = [
   {
     description: "测试 1: 简单对话（不需要工具）",
     question: "你好，你是谁？",
+    showDetails: false,
   },
   {
     description: "测试 2: 单个工具调用",
     question: "北京今天天气怎么样？",
+    showDetails: false,
   },
   {
     description: "测试 3: 数学计算",
     question: "帮我计算 (25 + 75) * 2 等于多少？",
+    showDetails: false,
   },
   {
     description: "测试 4: 多工具组合",
     question: "现在几点了？深圳天气如何？",
+    showDetails: false,
   },
   {
-    description: "测试 5: 搜索信息",
-    question: "什么是 LangChain？",
+    description: "测试 5: Tavily 搜索（显示详细过程）",
+    question: "什么是 LangGraph？请搜索最新信息",
+    showDetails: true, // 显示详细消息列表
   },
 ];
 
@@ -440,6 +542,11 @@ for (const testCase of testCases) {
       messages: [new HumanMessage(testCase.question)],
     });
 
+    // 如果需要显示详细信息，打印完整消息列表
+    if (testCase.showDetails) {
+      printDetailedMessages(result.messages);
+    }
+
     // 获取最后一条 AI 消息作为回答
     const finalMessage = result.messages[result.messages.length - 1];
     console.log("\n💬 Agent 回答:");
@@ -447,8 +554,20 @@ for (const testCase of testCases) {
 
     // 显示消息数量（用于理解循环次数）
     console.log(`\n   📊 总消息数: ${result.messages.length}`);
+
+    // 如果是搜索测试，额外说明消息流程
+    if (testCase.showDetails) {
+      console.log("\n   📝 消息流程说明:");
+      console.log("      1. HumanMessage: 用户的问题");
+      console.log("      2. AIMessage (带 tool_calls): LLM 决定调用哪个工具");
+      console.log("      3. ToolMessage: 工具执行后的返回结果");
+      console.log("      4. AIMessage: LLM 根据工具结果生成最终回答");
+    }
   } catch (error) {
     console.log(`   ❌ 错误: ${error.message}`);
+    if (error.message.includes("TAVILY") || error.message.includes("API")) {
+      console.log("   💡 提示: 请确保已配置 TAVILY_API_KEY 环境变量");
+    }
   }
 
   console.log("");
@@ -555,4 +674,5 @@ console.log(`
 
 console.log("═".repeat(60));
 console.log("\n✅ Agent Demo 运行完成！");
-console.log("📖 请查看 AGENT_知识点详解.md 获取更多学习资料\n");
+console.log("📖 请查看 AGENT_知识点详解.md 获取更多学习资料");
+console.log("🔍 Tavily Search API: https://tavily.com/\n");
